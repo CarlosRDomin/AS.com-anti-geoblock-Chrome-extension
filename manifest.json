@@ -1,36 +1,36 @@
 {
-  "name": "BrowserExtension",
-  "version": "0.0.1",
+  "name": "AS.com sin geolocalización",
+  "version": "1.0.0",
   "manifest_version": 2,
-  "description" : "Description ...",
-  "icons": { "16": "icons/16x16.png", "48": "icons/48x48.png", "128": "icons/128x128.png" },
+  "description" : "Evita el molesto mensaje de 'Vídeo no disponible en su zona geográfica' en el periódico online AS.com.",
+  "icons": { "16": "icons/as_16.png", "48": "icons/as_48.png", "128": "icons/as_128.png" },
 
-  "omnibox": { "keyword" : "yeah" },
+  /*"omnibox": { "keyword" : "yeah" },*/
 
-  "browser_action": {
+  /*"browser_action": {
     "default_icon": {
-      "19": "icons/19x19.png",
-      "38": "icons/38x38.png"
+      "19": "icons/as_19.png",
+      "38": "icons/as_38.png"
     },
     "default_title": "That's the tool tip",
     "default_popup": "browseraction/popup.html"
-  },
+  },*/
 
-  "background": {
+  /*"background": {
     "scripts": ["background.js"],
     "persistent": false
-  },
+  },*/
 
-  "chrome_url_overrides" : {
+  /*"chrome_url_overrides" : {
     "newtab": "newtab/newtab.html"
-  },
+  },*/
+
+  /*"devtools_page": "devtools/devtools.html",*/
 
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
+      "matches": ["*://*.as.com/*"],
       "js": ["content.js"]
     }
-  ],
-
-  "devtools_page": "devtools/devtools.html"
+  ]
 }

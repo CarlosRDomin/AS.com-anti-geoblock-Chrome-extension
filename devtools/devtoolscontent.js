@@ -1,6 +1,6 @@
 window.onload = function() {
-	var port = chrome.extension.connect({ name: "color-divs-port" });
+	var port = chrome.extension.connect({ name: "devtools-port" });
 	document.getElementById("button").onclick = function() {
-    	port.postMessage({ type: "color-divs"});
+    	port.postMessage({ type: "unblock-video"});
 	}
 }

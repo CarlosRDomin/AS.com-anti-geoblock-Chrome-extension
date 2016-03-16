@@ -1,4 +1,4 @@
-// omnibox
+/*// omnibox
 chrome.omnibox.onInputChanged.addListener(function(text, suggest) {
 	suggest([
 	  {content: "color-divs", description: "Make everything red"}
@@ -17,25 +17,25 @@ chrome.extension.onMessage.addListener(function(request, sender, sendResponse) {
         break;
     }
     return true;
-});
+});*/
 
 // listening for an event / long-lived connections
 // coming from devtools
 chrome.extension.onConnect.addListener(function (port) {
     port.onMessage.addListener(function (message) {
        	switch(port.name) {
-			case "color-divs-port":
-				colorDivs();
+			case "devtools-port":
+				reRunContentCode(); // Ignore message content, just re-run the code
 			break;
 		}
     });
 });
 
 // send a message to the content script
-var colorDivs = function() {
+var reRunContentCode = function() {
 	chrome.tabs.getSelected(null, function(tab){
-	    chrome.tabs.sendMessage(tab.id, {type: "colors-div", color: "#F00"});
-	    // setting a badge
-		chrome.browserAction.setBadgeText({text: "red!"});
+		chrome.tabs.sendMessage(tab.id, {type: "unblock-video", color: "#F00"});
+		/*// setting a badge
+		chrome.browserAction.setBadgeText({text: "red!"});*/
 	});
 }
