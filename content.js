@@ -46,7 +46,7 @@ function unblockVideo() {
 						identificador = get_identificador.substring(identificador_start_idx, get_identificador.indexOf("'", identificador_start_idx))
 						src_video = src_img.substring(0, src_img.lastIndexOf("/")+1).replace("imagenes", "videos") + identificador + ".mp4";
 						console.log("Encontrada su ubicación real: " + src_video + "! =)");
-						divs[i].innerHTML = "<video controls" + (getUrlBoolVar("autoplay")? " autoplay":"") + (getUrlBoolVar("loop")? " loop":"") + ">" +
+						divs[i].innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + ">" +
 							"<source src='" + src_video + "' type='video/mp4' />" +
 							"Tu navegador no soporta el tag <video>! =(" +
 							"</video>";
