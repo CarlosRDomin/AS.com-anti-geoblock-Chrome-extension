@@ -1,3 +1,5 @@
+DEFAULT_URL_CACHE = "http://as02.epimg.net";
+
 chrome.extension.onMessage.addListener(function(message, sender, sendResponse) {	// This code will run when the "Run script" button in devtools is clicked
 	switch(message.type) {
 		case "unblock-video":
@@ -7,8 +9,9 @@ chrome.extension.onMessage.addListener(function(message, sender, sendResponse) {
 });
 
 function getUrlVars() {
+	/* This function retrieves all GET variables passed in the URL and returns them as a (key, value) dictionary */
 	var vars = {};
-	var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+	var parts = location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
 		vars[key] = value;
 	});
 
@@ -16,51 +19,121 @@ function getUrlVars() {
 }
 
 function getUrlBoolVar(name, def=true) {
+	/* This function retrieves a boolean GET variable specified by name. If that variable wasn't passed in the URL, default value def is returned */
 	var v = getUrlVars()[name];
 
-	return (v == null)? def:(v > 0);
+	return (v === undefined)? def:(v > 0);
+}
+
+function extractVarFromScript(innerHTML, varName) {
+	/* Look for a variable declaration such as "var identificadorBC_1465458751   = '1446587363_676815_1446588920';" and get the value of the variable. Return null if declaration not found */
+	var var_declaration = new RegExp("var " + varName + "[^;]+").exec(innerHTML);
+
+	if (var_declaration !== null) {
+		var_declaration = var_declaration[0];		// Should only be one match, otherwise just ignore the others and only analyze the first one
+		var_value = var_declaration.substring(var_declaration.indexOf("=") + 1);	// Remove the contents of the string before the equal sign
+		return (var_value === null)? "":var_value;	// Prevent returning null if a match was found
+	}
+
+	return null;
+}
+
+function displayMsgInDiv(div, msg, isLoading=true) {
+	div.children[0].innerHTML = '<div style="display: table; width: 100%; height: 100%;">\
+		<span class="s-tcenter ntc-media-msg ntc-media-msg-txt" style="display: table-cell; vertical-align: middle; position: relative; top: 0px;">' +
+		msg +
+		((!isLoading)? '':'<br><img src="https://github.com/CarlosRDomin/UrmeeUCR/blob/master/UrmeeExperiment/static/images/loading_spinner.gif?raw=true" loop="infinite" style="width: 75px; margin: auto;"/>') +
+		'</span></div>';
+}
+
+function replaceDivByVideo(div, src_video) {
+	console.log("CONFIRMADA su ubicación real: " + src_video + "! =)");
+	div.parentNode.innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + " style='width:100%; height: 100%'>" +
+		"<source src='" + src_video + "' type='video/mp4' />" +
+		"Tu navegador no soporta el tag 'video'! =(" +
+		"</video>";
+}
+
+function findVideoURL(div) {
+	/* This function reads the <script>s in the document to figure out the URL of the blocked video */
+	displayMsgInDiv(div, ("Cargando vídeo bloqueado..."));
+	var scripts = document.querySelectorAll("script");
+
+	var url_cache = null, identificador = null;
+	for (var i=0; i<scripts.length; i++) {
+		// console.log("Script: [[" + scripts[i].innerHTML + "]]");
+		if (url_cache === null) {	// If not found yet, look for declaration of url_cache
+			url_cache = eval(extractVarFromScript(scripts[i].innerHTML, "url_cache"));
+		}
+		if (identificador === null) {	// If not found yet, look for declaration of identificadorBC_##########...
+			identificador = eval(extractVarFromScript(scripts[i].innerHTML, "identificadorBC_"));
+			if (identificador !== null) {	// If identificador was found in this script, we should also be able to get info for the first frame (which contains the video date)
+				var primer_frame = extractVarFromScript(scripts[i].innerHTML, "urlFotogramaFijo_");	// No need to eval the result, not interested in removing quotes, etc.
+				var date_video = /\/[0-9]{4}\/[0-9]{2}\/[0-9]{2}\//.exec(primer_frame)[0];	// Look for "/####/##/##/" (including slashes)
+				var src_video = ((url_cache===null)? DEFAULT_URL_CACHE:url_cache) + "/videos/videos" + date_video + "portada/" + identificador + ".mp4";
+				console.log("Creo que he encontrado su ubicación real: " + src_video + "! Déjame confirmarlo...");
+
+				var numTries = 1;
+				var xhr = new XMLHttpRequest();
+				xhr.onreadystatechange = function() {
+					// console.log("xhr state " + xhr.readyState + "; status: " + xhr.status + "; URL: " + xhr.responseURL);
+					switch (xhr.readyState) {
+						case 2:
+							if (xhr.responseURL === src_video) {	// Just checking if video URL is correct, only care about xhr.status (either 200 or 404)
+								if (xhr.status == 404) {
+									console.log("Vaya, parece que " + src_video + " no es la ubicación correcta... Voy a probar otro método :)");
+									displayMsgInDiv(div, ("El método del script no funcionó, probando a través del proxy... Intento #" + numTries));
+									xhr.open("GET", "http://as.com/vdpep/1/?pepid=" + identificador + "as", true);	// This also aborts previous request :)
+									xhr.send();
+								} else if (xhr.status == 200) {
+									replaceDivByVideo(div, src_video);
+									xhr.onreadystatechange = null;	// When a request is aborted, xhr.readyState changes to 4 and status to 0. Avoid processing it.
+									xhr.abort();	// Abort request so video doesn't start to download
+								}
+							}
+							break;
+						case 4:
+							// if (xhr.responseURL === "" || xhr.responseURL === src_video) break;	// When xhr.abort() is called, execution comes here. Simply ignore it
+							if (xhr.status == 200) {
+								var func_call = /EPET_VideoPlayer_callback\([^;]*\)/.exec(xhr.responseText)[0];	// Look for the call to EPET_VideoPlayer_callback()
+								var content = JSON.parse(/\{[^]*\}/.exec(func_call)[0]);	// Get outermost curly braces and parse contents
+								src_video = ((url_cache===null)? DEFAULT_URL_CACHE:url_cache) + content.mp4;	// Compose src_video from the new information
+								replaceDivByVideo(div, src_video);	// Finally, show the video with the correct URL
+							} else {
+								if (numTries < 5) {
+									numTries++;
+									console.log("Reintentando obtener información sobre el vídeo... Intento número " + numTries);
+									displayMsgInDiv(div, ("Reintentando el método del proxy... Intento #" + numTries));
+									xhr.open("GET", "http://as.com/vdpep/1/?pepid=" + identificador + "as", true);
+									xhr.send();
+								} else {
+									console.log("Se ha excedido el máximo número de reintentos. Lo siento, no he sido capaz de encontrar el vídeo :'(");
+									displayMsgInDiv(div, "Lo siento, se ha alcanzado el máximo número de reintentos ='(<br>Prueba otra vez manualmente o selecciona otro servidor proxy", false);
+								}
+							}
+							break;
+					}
+				}
+				xhr.open("GET", src_video, true);
+				xhr.send();
+				return;
+			}
+		}
+	}
 }
 
 function unblockVideo() {
-	var divs = document.querySelectorAll("div");
-
-	for (var i=0; i<divs.length; i++) {
-		if (divs[i].className.indexOf("video_no_disponible") >= 0) {
-			console.log("Encontrado un video no disponible!");
-
-			children = divs[i].children;
-			src_img = ""
-			for (var j=0; j<children.length; j++) {
-				if (children[j].nodeName.toLowerCase() === "img") {
-					src_img = children[j].src;
-					break;
-				}
-			}
-
-			if (src_img !== "") {
-				uncles = divs[i].parentNode.parentNode.children;
-				for (var j=0; j<uncles.length; j++) {
-					if (uncles[j].nodeName.toLowerCase() === "script") {			// Find the line that looks like this: "var identificadorBC_1458082988   = '1458081617_641882_1458082428';" and get the value of identificador...
-						get_identificador = uncles[j].innerHTML.substring(uncles[j].innerHTML.indexOf("var identificador"));	// Find the interesting line
-						identificador_start_idx = get_identificador.indexOf("'")+1;	// Find start index of identificador (without the initial apostrophe "'")
-						identificador = get_identificador.substring(identificador_start_idx, get_identificador.indexOf("'", identificador_start_idx))
-						src_video = src_img.substring(0, src_img.lastIndexOf("/")+1).replace("imagenes", "videos") + identificador + ".mp4";
-						console.log("Encontrada su ubicación real: " + src_video + "! =)");
-						divs[i].innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + ">" +
-							"<source src='" + src_video + "' type='video/mp4' />" +
-							"Tu navegador no soporta el tag <video>! =(" +
-							"</video>";
-						return;
-					}
-				}
-			}
-
-			alert("Lo siento, no he sido capaz de encontrar la ubicación real del vídeo geobloqueado =(");
-			break;
-		}
+	if (location.pathname === "/" || location.pathname === "/index.html") {	// Don't look for videos if on the main page, it's annoying when they play in the background
+		console.log("Estás en la portada, no voy a mirar si hay vídeos aquí... =P");
+		return;
 	}
 
-	console.log("No he encontrado ningún vídeo geobloqueado en esta página.");
+	var vids_no_disponible = document.getElementsByClassName("video_no_disponible");
+	if (vids_no_disponible.length == 0) {
+		console.log("No he encontrado ningún vídeo geobloqueado en esta página.");
+		return;
+	}
+	findVideoURL(vids_no_disponible[0]);	// For now, only process the first blocked video in the page (there shouldn't be more than 1, but ignore the rest if so)
 }
 
 unblockVideo();	// Execute on load

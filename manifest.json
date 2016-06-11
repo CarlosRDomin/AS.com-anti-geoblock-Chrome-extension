@@ -4,6 +4,7 @@
   "manifest_version": 2,
   "description" : "Evita el molesto mensaje de 'Vídeo no disponible en su zona geográfica' en el periódico online AS.com.",
   "icons": { "16": "icons/as_16.png", "48": "icons/as_48.png", "128": "icons/as_128.png" },
+  "permissions": ["http://as.com/", "http://as02.epimg.net/"],
 
   /*"omnibox": { "keyword" : "yeah" },*/
 
