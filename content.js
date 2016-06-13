@@ -31,8 +31,7 @@ function extractVarFromScript(innerHTML, varName) {
 
 	if (var_declaration !== null) {
 		var_declaration = var_declaration[0];		// Should only be one match, otherwise just ignore the others and only analyze the first one
-		var_value = var_declaration.substring(var_declaration.indexOf("=") + 1);	// Remove the contents of the string before the equal sign
-		return (var_value === null)? "":var_value;	// Prevent returning null if a match was found
+		return var_declaration.substring(var_declaration.indexOf("=") + 1);	// Remove the contents of the string before the equal sign
 	}
 
 	return null;
@@ -54,7 +53,23 @@ function replaceDivByVideo(div, src_video) {
 		"</video>";
 }
 
-function findVideoURL(div) {
+function findUnblockedVideosURL() {
+	var scripts = document.querySelectorAll("script");
+
+	var url_cache = null, url = undefined;
+	for (var i=0; i<scripts.length; i++) {
+		// console.log("Script: [[" + scripts[i].innerHTML + "]]");
+		if (url_cache === null) {	// If not found yet, look for declaration of url_cache
+			url_cache = eval(extractVarFromScript(scripts[i].innerHTML, "url_cache"));
+		}
+		url = eval(extractVarFromScript(scripts[i].innerHTML, "urlVideo_"));
+		if (url != null) {	// If script contains urlVideo_##########, print its url
+			console.log("Encontrado un vídeo no bloqueado: " + url + "! =)");
+		}
+	}
+}
+
+function findBlockedVideoURL(div) {
 	/* This function reads the <script>s in the document to figure out the URL of the blocked video */
 	displayMsgInDiv(div, ("Cargando vídeo bloqueado..."));
 	var scripts = document.querySelectorAll("script");
@@ -67,7 +82,7 @@ function findVideoURL(div) {
 		}
 		if (identificador === null) {	// If not found yet, look for declaration of identificadorBC_##########...
 			identificador = eval(extractVarFromScript(scripts[i].innerHTML, "identificadorBC_"));
-			if (identificador !== null) {	// If identificador was found in this script, we should also be able to get info for the first frame (which contains the video date)
+			if (identificador != null) {	// If identificador was found in this script, we should also be able to get info for the first frame (which contains the video date)
 				var primer_frame = extractVarFromScript(scripts[i].innerHTML, "urlFotogramaFijo_");	// No need to eval the result, not interested in removing quotes, etc.
 				var date_video = /\/[0-9]{4}\/[0-9]{2}\/[0-9]{2}\//.exec(primer_frame)[0];	// Look for "/####/##/##/" (including slashes)
 				var src_video = ((url_cache===null)? DEFAULT_URL_CACHE:url_cache) + "/videos/videos" + date_video + "portada/" + identificador + ".mp4";
@@ -78,7 +93,7 @@ function findVideoURL(div) {
 				xhr.onreadystatechange = function() {
 					// console.log("xhr state " + xhr.readyState + "; status: " + xhr.status + "; URL: " + xhr.responseURL);
 					switch (xhr.readyState) {
-						case 2:
+						case 2:	// Headers & status are ready, haven't started downloading body content
 							if (xhr.responseURL === src_video) {	// Just checking if video URL is correct, only care about xhr.status (either 200 or 404)
 								if (xhr.status == 404) {
 									console.log("Vaya, parece que " + src_video + " no es la ubicación correcta... Voy a probar otro método :)");
@@ -92,7 +107,7 @@ function findVideoURL(div) {
 								}
 							}
 							break;
-						case 4:
+						case 4:	// Full request downloaded (responseText contains body content)
 							// if (xhr.responseURL === "" || xhr.responseURL === src_video) break;	// When xhr.abort() is called, execution comes here. Simply ignore it
 							if (xhr.status == 200) {
 								var func_call = /EPET_VideoPlayer_callback\([^;]*\)/.exec(xhr.responseText)[0];	// Look for the call to EPET_VideoPlayer_callback()
@@ -128,12 +143,16 @@ function unblockVideo() {
 		return;
 	}
 
-	var vids_no_disponible = document.getElementsByClassName("video_no_disponible");
-	if (vids_no_disponible.length == 0) {
+	var vids_no_disponibles = document.getElementsByClassName("video_no_disponible");
+	if (vids_no_disponibles.length == 0) {
 		console.log("No he encontrado ningún vídeo geobloqueado en esta página.");
+		var vids_disponibles = document.getElementsByClassName("video_MPEP");
+		if (vids_disponibles.length > 0) {
+			findUnblockedVideosURL();
+		}
 		return;
 	}
-	findVideoURL(vids_no_disponible[0]);	// For now, only process the first blocked video in the page (there shouldn't be more than 1, but ignore the rest if so)
+	findBlockedVideoURL(vids_no_disponibles[0]);	// For now, only process the first blocked video in the page (there shouldn't be more than 1, but ignore the rest if so)
 }
 
 unblockVideo();	// Execute on load
