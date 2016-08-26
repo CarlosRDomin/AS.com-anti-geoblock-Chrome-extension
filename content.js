@@ -47,13 +47,15 @@ function displayMsgInDiv(div, msg, isLoading=true) {
 
 function replaceDivByVideo(div, src_video) {
 	console.log("CONFIRMADA su ubicación real: " + src_video + "! =)");
-	div.parentNode.innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + " style='width:100%; height: 100%'>" +
+	new_div = div.parentNode;	// In case we need it, don't lose a reference to the new element (the old div won't point to a valid div element after next line)
+	new_div.innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + " style='width:100%; height: 100%' id='" + div.id + "'>" +
 		"<source src='" + src_video + "' type='video/mp4' />" +
 		"Tu navegador no soporta el tag 'video'! =(" +
 		"</video>";
+	return new_div;
 }
 
-function findUnblockedVideosURL() {
+function findUnblockedVideosURL(div) {
 	var scripts = document.querySelectorAll("script");
 
 	var url_cache = null, url = undefined;
@@ -65,6 +67,10 @@ function findUnblockedVideosURL() {
 		url = eval(extractVarFromScript(scripts[i].innerHTML, "urlVideo_"));
 		if (url != null) {	// If script contains urlVideo_##########, print its url
 			console.log("Encontrado un vídeo no bloqueado: " + url + "! =)");
+			div = replaceDivByVideo(div, url);
+			// id = eval(extractVarFromScript(scripts[i].innerHTML, "identificadorBC_")) + "as-1";
+			// var script = document.createElement('script'); script.type = 'text/javascript'; script.innerHTML = 'setTimeout(MultimediaReinicio("' + id + '"), 3000);';
+			// div.parentNode.appendChild(script);
 		}
 	}
 }
@@ -148,7 +154,7 @@ function unblockVideo() {
 		console.log("No he encontrado ningún vídeo geobloqueado en esta página.");
 		var vids_disponibles = document.getElementsByClassName("video_MPEP");
 		if (vids_disponibles.length > 0) {
-			findUnblockedVideosURL();
+			findUnblockedVideosURL(vids_disponibles[0]);
 		}
 		return;
 	}
