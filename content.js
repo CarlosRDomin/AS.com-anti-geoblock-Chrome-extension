@@ -1,4 +1,5 @@
-DEFAULT_URL_CACHE = "http://as02.epimg.net";
+protocolUrl = (location.protocol==="https:")? "https:":"http:";	// New version of AS.com needs this variable to be defined for url_cache to be computed correctly
+DEFAULT_URL_CACHE = protocolUrl + "//as02.epimg.net";
 
 chrome.extension.onMessage.addListener(function(message, sender, sendResponse) {	// This code will run when the "Run script" button in devtools is clicked
 	switch(message.type) {
@@ -41,17 +42,19 @@ function displayMsgInDiv(div, msg, isLoading=true) {
 	div.children[0].innerHTML = '<div style="display: table; width: 100%; height: 100%;">\
 		<span class="s-tcenter ntc-media-msg ntc-media-msg-txt" style="display: table-cell; vertical-align: middle; position: relative; top: 0px;">' +
 		msg +
-		((!isLoading)? '':'<br><img src="https://github.com/CarlosRDomin/UrmeeUCR/blob/master/UrmeeExperiment/static/images/loading_spinner.gif?raw=true" loop="infinite" style="width: 75px; margin: auto;"/>') +
+		((!isLoading)? '':'<br><img src="https://github.com/CarlosRDomin/UrmeeUCR/blob/master/BargainingExperiment/src/static/images/loading_spinner.gif?raw=true" loop="infinite" style="width: 75px; margin: auto;"/>') +
 		'</span></div>';
 }
 
-function replaceDivByVideo(div, src_video) {
+function replaceDivByVideo(div, src_video, errMsg="") {
 	console.log("CONFIRMADA su ubicación real: " + src_video + "! =)");
 	new_div = div.parentNode;	// In case we need it, don't lose a reference to the new element (the old div won't point to a valid div element after next line)
 	new_div.innerHTML = "<video controls" + (getUrlBoolVar("autoplay", true)? " autoplay":"") + (getUrlBoolVar("loop", false)? " loop":"") + " style='width:100%; height: 100%' id='" + div.id + "'>" +
 		"<source src='" + src_video + "' type='video/mp4' />" +
 		"Tu navegador no soporta el tag 'video'! =(" +
 		"</video>";
+	if (errMsg === "") errMsg = '<a href="' + src_video + '">' + src_video + '</a>';
+	new_div.firstChild.addEventListener('error', function(event) { event.currentTarget.parentNode.innerHTML = "<div class='int-articulo' style='background-color: white; height: 100%; /*overflow: scroll;*/ display: table;'><p class='int-articulo' style='word-break: break-all; text-align: center; vertical-align: middle; display: table-cell;'><b>Error cargando el video :(</b><br>" + errMsg + "</p></div>"; }, true);
 	return new_div;
 }
 
@@ -104,7 +107,7 @@ function findBlockedVideoURL(div) {
 								if (xhr.status == 404) {
 									console.log("Vaya, parece que " + src_video + " no es la ubicación correcta... Voy a probar otro método :)");
 									displayMsgInDiv(div, ("El método del script no funcionó, probando a través del proxy... Intento #" + numTries));
-									xhr.open("GET", "http://as.com/vdpep/1/?pepid=" + identificador + "as", true);	// This also aborts previous request :)
+									xhr.open("GET", protocolUrl + "//as.com/vdpep/1/?pepid=" + identificador + "as", true);	// This also aborts previous request :)
 									xhr.send();
 								} else if (xhr.status == 200) {
 									replaceDivByVideo(div, src_video);
@@ -120,12 +123,15 @@ function findBlockedVideoURL(div) {
 								var content = JSON.parse(/\{[^]*\}/.exec(func_call)[0]);	// Get outermost curly braces and parse contents
 								src_video = ((url_cache===null)? DEFAULT_URL_CACHE:url_cache) + content.mp4;	// Compose src_video from the new information
 								replaceDivByVideo(div, src_video);	// Finally, show the video with the correct URL
+							} else if (xhr.status == 0) {	// Status=0 means the response didn't include the header 'Access-Control-Allow-Origin' (but the response wasn't 404 Not Found, so let's assume it's good :)
+								console.log("El request a la posible url del video (" + src_video + ") no ha podido ser procesada (status=0), lo cual probablemente significa que la respuesta no contenía el header 'Access-Control-Allow-Origin'. Asumiremos que eso implica que esta es la URL correcta");
+								replaceDivByVideo(div, src_video, "(Creo que la url es: <a href='" + src_video + "'>" + src_video + "</a>)");	// Show the video with the URL we guessed
 							} else {
 								if (numTries < 5) {
 									numTries++;
 									console.log("Reintentando obtener información sobre el vídeo... Intento número " + numTries);
 									displayMsgInDiv(div, ("Reintentando el método del proxy... Intento #" + numTries));
-									xhr.open("GET", "http://as.com/vdpep/1/?pepid=" + identificador + "as", true);
+									xhr.open("GET", protocolUrl + "//as.com/vdpep/1/?pepid=" + identificador + "as", true);
 									xhr.send();
 								} else {
 									console.log("Se ha excedido el máximo número de reintentos. Lo siento, no he sido capaz de encontrar el vídeo :'(");
